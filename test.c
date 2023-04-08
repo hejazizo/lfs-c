@@ -14,7 +14,9 @@ int main(int argc, char *argv[])
 	directory_create(1, "a");
 	directory_create(1, "b");
 	directory_create(1, "c");
-	printf("three directory created.\n");
+	directory_create(1, "d");
+	directory_create(1, "e");
+	printf("Five directory created.\n");
 	print_new_entries(1);
 	directory_remove(3);
 	print_new_entries(1);
