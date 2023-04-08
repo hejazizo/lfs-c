@@ -111,7 +111,7 @@ int file_remove(int inum, int parent_inum)
 	remove_child_entry_from_parent_directory(parent_inum, inum);
 
 	// Free the inode of the file
-	file_free(inum);
+	free_file(inum);
 
 	// Return 0 to indicate success
 	return 0;
@@ -143,7 +143,7 @@ int remove_child_entry_from_parent_directory(int inum, int child_inum)
 	void *buffer = (void *)calloc(tmp->eof_index_in_bytes + 1, sizeof(char));
 
 	// Read the parent directory data into the buffer
-	file_read_begining_to_end(inum, buffer);
+	read_file_from_start_to_end(inum, buffer);
 
 	// Calculate the number of directory entries in the parent directory
 	int entry_count = (tmp->eof_index_in_bytes + 1) / sizeof(DirectoryEntry);
@@ -198,7 +198,7 @@ void print_new_entries(int inum)
 	void *buffer = (void *)calloc(tmp->eof_index_in_bytes + 1, sizeof(char));
 
 	// Read the directory data into the buffer
-	file_read_begining_to_end(inum, buffer);
+	read_file_from_start_to_end(inum, buffer);
 
 	// Calculate the number of directory entries in the directory
 	int entry_count = (tmp->eof_index_in_bytes + 1) / sizeof(DirectoryEntry);
@@ -236,7 +236,7 @@ int add_child_entry_to_parent_directory(int inum, char *child_name, int child_in
 	void *buffer = (void *)calloc(tmp->eof_index_in_bytes + 1, sizeof(char));
 
 	// Read the parent directory data into the buffer
-	file_read_begining_to_end(inum, buffer);
+	read_file_from_start_to_end(inum, buffer);
 
 	// Calculate the number of directory entries in the parent directory
 	int entry_count = (tmp->eof_index_in_bytes + 1) / sizeof(DirectoryEntry);
@@ -289,7 +289,7 @@ DirectoryEntry **get_subdirectories(int inum, int *entry_count)
 	void *buffer = (void *)calloc(tmp->eof_index_in_bytes + 1, sizeof(char));
 
 	// Read the directory data into the buffer
-	file_read_begining_to_end(inum, buffer);
+	read_file_from_start_to_end(inum, buffer);
 
 	// Calculate the number of directory entries in the directory
 	*entry_count = (tmp->eof_index_in_bytes + 1) / sizeof(DirectoryEntry);

@@ -117,172 +117,239 @@ int write_to_file(int inum, int offset, int length, void *buffer)
 }
 
 
-int file_read(int inum, int offset, int length, void *buffer)
+/*
+ * Reads data from the file with the given i-num, starting at the given offset and continuing for the given length.
+ * Calculates the affected blocks and reads data from those blocks into the buffer.
+ *
+ * @param inum the i-num of the file to read from
+ * @param offset the offset at which to start reading in bytes
+ * @param length the length of the data to read in bytes
+ * @param buffer the buffer to read the data into
+ * @return 0 on success, -1 on error
+ */
+int read_from_file(int inum, int offset, int length, void *buffer)
 {
-	// calculate affected blocks and find their segment and block no for reading
-	int *number_blocks_affected = (int *)calloc(1, sizeof(int));
-	block_address **block_addresses = get_affected_blocks_addresses(inum, offset, length, number_blocks_affected);
-	read_from_blocks_to_buffer(block_addresses, *number_blocks_affected, offset, length, buffer);
+    // Calculate affected blocks and find their segment and block number for reading
+    int num_blocks_affected = 0;
+    block_address **block_addresses = get_affected_blocks_addresses(inum, offset, length, &num_blocks_affected);
 
-	return 0;
+    // Read data from blocks into buffer
+    read_from_blocks_to_buffer(block_addresses, num_blocks_affected, offset, length, buffer);
+
+    // Free memory allocated for block addresses
+    for (int i = 0; i < num_blocks_affected; i++) {
+        free(block_addresses[i]);
+    }
+    free(block_addresses);
+
+    // Return 0 on success
+    return 0;
 }
 
-int file_read_begining_to_end(int inum, void *buffer)
+
+/*
+ * Reads the entire contents of the file with the given i-num from the beginning to the end.
+ * Gets the file's inode to determine the size of the file and reads the data into the buffer.
+ *
+ * @param inum the i-num of the file to read from
+ * @param buffer the buffer to read the data into
+ * @return 0 on success, -1 on error
+ */
+int read_file_from_start_to_end(int inum, void *buffer)
 {
-	i_node *tmp = get_inode(inum);
+    // Get the file's inode to determine the size of the file
+    i_node *file_inode = get_inode(inum);
 
-	file_read(inum, 0, tmp->eof_index_in_bytes + 1, buffer);
+    // Read the entire contents of the file into the buffer
+    read_from_file(inum, 0, file_inode->eof_index_in_bytes + 1, buffer);
 
-	return 0;
+    // Free the inode
+    free(file_inode);
+
+    // Return 0 on success
+    return 0;
 }
 
-int file_free(int inum)
-{
-	Log_Remove_mapping(inum);
 
-	return 0;
+/*
+ * Frees the file with the given i-num by removing its mapping from the i-file.
+ *
+ * @param inum the i-num of the file to free
+ * @return 0 on success, -1 on error
+ */
+int free_file(int inum)
+{
+    // Remove the file's mapping from the i-file
+    Log_Remove_mapping(inum);
+
+    // Return 0 on success
+    return 0;
 }
 
+
+/**
+* Writes the given buffer to the appropriate blocks, updates the inode and writes it to a new location,
+* and updates the IFile with the new mapping.
+*
+* @param block_addresses Array of pointers to block_address structures for the affected blocks.
+* @param number_blocks_affected The number of affected blocks.
+* @param buffer The buffer to write.
+* @param offset The offset in the file to start writing from.
+* @param length The length of the data to write.
+* @param inum The inode number of the file to write to.
+*
+* @return The new block addresses after writing to the blocks.
+*/
 block_address **write_buffer_to_appropriate_blocks(block_address **block_addresses, int number_blocks_affected, void *buffer, int offset, int length, int inum)
 {
-	// a space to keep the new written block addresses for INODE (this value is returned back)
-	block_address **new_block_addresses = (block_address **)calloc(number_blocks_affected, sizeof(block_address *));
-	// printf("number blocks affected: %d\n",number_blocks_affected );
+    // Allocate space to store new block addresses for the INODE to be returned
+    block_address **new_block_addresses = (block_address **)calloc(number_blocks_affected, sizeof(block_address *));
 
-	int block_size_in_bytes = sp->block_size_in_sectors * 512;
-	int start_block_no = (int)ceil((float)offset / block_size_in_bytes);
+    int block_size_in_bytes = sp->block_size_in_sectors * 512;
+    int start_block_no = (int)ceil((float)offset / block_size_in_bytes);
 
-	// devide the buffer into an array of buffers each of which is written to one block
-	void **buffers = (void **)calloc(number_blocks_affected, sizeof(void *));
+    // Divide the buffer into an array of smaller buffers, each to be written to one block
+    void **buffers = (void **)calloc(number_blocks_affected, sizeof(void *));
 
-	for (int i = 0; i < number_blocks_affected; ++i)
-	{
-		void *tmp_buffer = (void *)calloc(sp->block_size_in_sectors * 512, sizeof(char));
-		block_address tmp_address;
+    for (int i = 0; i < number_blocks_affected; ++i)
+    {
+        void *tmp_buffer = (void *)calloc(sp->block_size_in_sectors * 512, sizeof(char));
+        block_address tmp_address;
 
-		// if a block is affected and already exists, first need to read it to memory and then write to it.
-		// if not exist, just write to it.
-		if (block_addresses[i]->segment_no != -1)
-		{
-			// block already exists. read its content and overwrite it
-			tmp_address.segment_no = block_addresses[i]->segment_no;
-			tmp_address.block_no = block_addresses[i]->block_no;
+        // If a block is affected and already exists, read it into memory and then write to it.
+        // If it does not exist, just write to it.
+        if (block_addresses[i]->segment_no != -1)
+        {
+            // Block already exists. Read its content and overwrite it.
+            tmp_address.segment_no = block_addresses[i]->segment_no;
+            tmp_address.block_no = block_addresses[i]->block_no;
 
-			// read the existing block
-			Log_Read(tmp_address, sp->block_size_in_sectors * 512, tmp_buffer);
-		}
+            // Read the existing block
+            Log_Read(tmp_address, sp->block_size_in_sectors * 512, tmp_buffer);
+        }
 
-		// find the appropriate starting index and length
-		int buffer_start_index = -1;
-		int tmp_start_index = -1;
-		int new_length = -1;
+        // Determine the appropriate starting index and length for the current block
+        int buffer_start_index = -1;
+        int tmp_start_index = -1;
+        int new_length = -1;
 
-		if (i == 0)
-		{
-			tmp_start_index = offset % block_size_in_bytes;
-			buffer_start_index = 0;
-			if (block_size_in_bytes < length)
-			{
-				new_length = block_size_in_bytes - tmp_start_index;
-			}
-			else
-			{
-				new_length = length;
-			}
-		}
-		else if (i == number_blocks_affected - 1)
-		{
-			tmp_start_index = 0;
-			new_length = (offset + length - 1) % block_size_in_bytes + 1;
-			buffer_start_index = offset + length - new_length;
-		}
-		else
-		{
-			tmp_start_index = 0;
-			new_length = block_size_in_bytes;
-			buffer_start_index = (i - 1) * (block_size_in_bytes) + (block_size_in_bytes - offset % block_size_in_bytes);
-		}
+        if (i == 0)
+        {
+            tmp_start_index = offset % block_size_in_bytes;
+            buffer_start_index = 0;
+            new_length = (block_size_in_bytes < length) ? block_size_in_bytes - tmp_start_index : length;
+        }
+        else if (i == number_blocks_affected - 1)
+        {
+            tmp_start_index = 0;
+            new_length = (offset + length - 1) % block_size_in_bytes + 1;
+            buffer_start_index = offset + length - new_length;
+        }
+        else
+        {
+            tmp_start_index = 0;
+            new_length = block_size_in_bytes;
+            buffer_start_index = (i - 1) * (block_size_in_bytes) + (block_size_in_bytes - offset % block_size_in_bytes);
+        }
 
-		// printf("tmp: write block %d from %d to %d.\n", i,tmp_start_index,tmp_start_index+new_length-1);
-		// printf("buffer: write block %d from %d to %d.\n", i,buffer_start_index,buffer_start_index+new_length-1);
+        // Write to the temporary buffer
+        memcpy(tmp_buffer + (tmp_start_index), buffer + (buffer_start_index), (new_length));
 
-		// write to the tmp buffer
-		memcpy(tmp_buffer + (tmp_start_index), buffer + (buffer_start_index), (new_length));
-		// printf("%s\n", (char *)tmp_buffer);
-		// write to log
+        // Write to log
+        char *desc = (char *)malloc(31 * sizeof(char));
+        sprintf(desc, "Data for inum: %d", inum);
 
-		char *desc = (char *)malloc(31 * sizeof(char));
-		sprintf(desc, "Data for inum: %d", inum);
+        Log_Write(&tmp_address, inum, start_block_no + i, new_length, tmp_buffer, desc);
+        new_block_addresses[i] = (block_address *)calloc(1, sizeof(block_address));
+        new_block_addresses[i]->segment_no = tmp_address.segment_no;
+        new_block_addresses[i]->block_no = tmp_address.block_no;
+    }
 
-		Log_Write(&tmp_address, inum, start_block_no + i, new_length, tmp_buffer, desc);
-		new_block_addresses[i] = (block_address *)calloc(1, sizeof(block_address));
-		new_block_addresses[i]->segment_no = tmp_address.segment_no;
-		new_block_addresses[i]->block_no = tmp_address.block_no;
-		// printf("new address for block %d: <%d,%d>\n",i, tmp_address.segment_no,tmp_address.block_no);
-	}
-
-	return new_block_addresses;
+    return new_block_addresses;
 }
 
 int read_from_blocks_to_buffer(block_address **block_addresses, int number_blocks_affected, int offset, int length, void *buffer)
 {
-	int block_size_in_bytes = sp->block_size_in_sectors * 512;
+    // Calculate the block size in bytes
+    int block_size_in_bytes = sp->block_size_in_sectors * 512;
 
-	for (int i = 0; i < number_blocks_affected; ++i)
-	{
-		void *tmp_buffer = (void *)calloc(sp->block_size_in_sectors * 512, sizeof(char));
-		block_address tmp_address;
+    // Loop through the affected blocks
+    for (int i = 0; i < number_blocks_affected; ++i)
+    {
+        // Allocate memory for the temporary buffer
+        void *tmp_buffer = (void *)calloc(sp->block_size_in_sectors * 512, sizeof(char));
 
-		tmp_address.segment_no = block_addresses[i]->segment_no;
-		tmp_address.block_no = block_addresses[i]->block_no;
+        // Get the address of the current block
+        block_address *current_block_address = block_addresses[i];
 
-		Log_Read(tmp_address, sp->block_size_in_sectors * 512, tmp_buffer);
+        // Check if the current block exists
+        if (current_block_address->segment_no == -1)
+        {
+            // If the block doesn't exist, fill it with zeros
+            memset(tmp_buffer, 0, block_size_in_bytes);
+        }
+        else
+        {
+            // If the block exists, read its contents to the temporary buffer
+            Log_Read(*current_block_address, block_size_in_bytes, tmp_buffer);
+        }
 
-		// find the appropriate starting index and length
-		int buffer_start_index = -1;
-		int tmp_start_index = -1;
-		int new_length = -1;
+        // Determine the appropriate starting index and length for the current block
+        int buffer_start_index = -1;
+        int tmp_start_index = -1;
+        int new_length = -1;
 
-		if (i == 0)
-		{
-			tmp_start_index = offset % block_size_in_bytes;
-			buffer_start_index = 0;
-			if (block_size_in_bytes < length)
-			{
-				new_length = block_size_in_bytes - tmp_start_index;
-			}
-			else
-			{
-				new_length = length;
-			}
-		}
-		else if (i == number_blocks_affected - 1)
-		{
-			tmp_start_index = 0;
-			new_length = (offset + length - 1) % block_size_in_bytes + 1;
-			buffer_start_index = offset + length - new_length;
-		}
-		else
-		{
-			tmp_start_index = 0;
-			new_length = block_size_in_bytes;
-			buffer_start_index = (i - 1) * (block_size_in_bytes) + (block_size_in_bytes - offset % block_size_in_bytes);
-		}
+        if (i == 0)
+        {
+            tmp_start_index = offset % block_size_in_bytes;
+            buffer_start_index = 0;
+            new_length = (block_size_in_bytes < length) ? block_size_in_bytes - tmp_start_index : length;
+        }
+        else if (i == number_blocks_affected - 1)
+        {
+            tmp_start_index = 0;
+            new_length = (offset + length - 1) % block_size_in_bytes + 1;
+            buffer_start_index = offset + length - new_length;
+        }
+        else
+        {
+            tmp_start_index = 0;
+            new_length = block_size_in_bytes;
+            buffer_start_index = (i - 1) * (block_size_in_bytes) + (block_size_in_bytes - offset % block_size_in_bytes);
+        }
 
-		// write to the buffer
-		memcpy(buffer + (buffer_start_index), tmp_buffer + (tmp_start_index), (new_length));
-		// printf("Read From %d to %d. \n", tmp_start_index,tmp_start_index+new_length-1);
-	}
+        // Write the data from the temporary buffer to the main buffer
+        memcpy(buffer + (buffer_start_index), tmp_buffer + (tmp_start_index), (new_length));
 
-	return 0;
+        // Free the memory allocated for the temporary buffer
+        free(tmp_buffer);
+    }
+
+    return 0;
 }
 
+
+/**
+ * Updates the inode information after a write operation.
+ *
+ * @param inum                  The inode number.
+ * @param first_block_index     The index of the first block affected by the write operation.
+ * @param number_blocks_affected The number of blocks affected by the write operation.
+ * @param new_block_addresses   The new block addresses to update in the inode.
+ * @param eof_index             The index of the end of the file after the write operation.
+ *
+ * @return                      Returns 0 on success.
+ */
 int update_inode_after_write(int inum, int first_block_index, int number_blocks_affected, block_address **new_block_addresses, int eof_index)
 {
+	// Get the current inode for the given inode number
 	i_node *current_inode = get_inode(inum);
+
+	// Read the indirect block addresses into memory
 	block_address indirect_addresses[sp->block_size_in_sectors * 512 / sizeof(block_address)];
 	Log_Read(current_inode->indirect_block, sp->block_size_in_sectors * 512, (void *)(&indirect_addresses));
 
+	// Update the block addresses in the inode for each block affected by the write operation
 	for (int i = first_block_index; i < first_block_index + number_blocks_affected; ++i)
 	{
 		if (i < 4)
@@ -297,30 +364,21 @@ int update_inode_after_write(int inum, int first_block_index, int number_blocks_
 		}
 	}
 
+	// Write the updated indirect block addresses to a new block
 	block_address *new_indirect_block_address = (block_address *)calloc(1, sizeof(block_address));
-
 	char *desc = (char *)malloc(31 * sizeof(char));
 	sprintf(desc, "Indirect Block for inum: %d", inum);
-
 	Log_Write(new_indirect_block_address, inum, -1, 0, ((void *)(&indirect_addresses)), desc);
+
+	// Update the inode with the new indirect block address and end of file index
 	current_inode->indirect_block.segment_no = new_indirect_block_address->segment_no;
 	current_inode->indirect_block.block_no = new_indirect_block_address->block_no;
-	// if (eof_index>current_inode->eof_index_in_bytes)
-	// {
-	// 	current_inode->eof_index_in_bytes = eof_index;
-	// }
 	current_inode->eof_index_in_bytes = eof_index;
 
-	// printf("First block address: <%d,%d>\n", new_block_addresses[0]->segment_no,new_block_addresses[0]->block_no);
-	// printf("first block index: %d\n", first_block_index);
-	// printf("new indirect block address: <%d,%d>\n", new_indirect_block_address->segment_no,new_indirect_block_address->block_no);
-	// write INode to new location and update IFILE
-
+	// Write the updated inode to a new block and update IFILE with the new inode address
 	block_address *new_inode_address = (block_address *)calloc(1, sizeof(block_address));
-
 	desc = (char *)malloc(31 * sizeof(char));
 	sprintf(desc, "Inode for inum: %d", inum);
-
 	Log_Write(new_inode_address, inum, -1, 0, (void *)current_inode, desc);
 
 	for (int i = 0; i < sp->i_node_mapping_count; ++i)
@@ -332,21 +390,34 @@ int update_inode_after_write(int inum, int first_block_index, int number_blocks_
 		}
 	}
 
+	// Write the updated IFILE to a new block
 	Log_Write_IFile();
 
 	return 0;
 }
 
+
+/**
+* Returns the block addresses affected by a write operation.
+*
+* @param inum                  The inode number.
+* @param offset                The offset of the write operation.
+* @param length                The length of the write operation.
+* @param number_blocks_affected The number of blocks affected by the write operation.
+*
+* @return                      Returns an array of block addresses affected by the write operation.
+*/
 block_address **get_affected_blocks_addresses(int inum, int offset, int length, int *number_blocks_affected)
 {
+	// Calculate the start and end block numbers affected by the write operation
 	int block_size_in_bytes = sp->block_size_in_sectors * 512;
-
 	int start_block_no = (int)floor((float)offset / block_size_in_bytes);
-
 	int end_block_no = (int)floor((float)(offset + length - 1) / block_size_in_bytes);
 
+	// Allocate memory for an array of block addresses affected by the write operation
 	block_address **addresses = (block_address **)calloc(end_block_no - start_block_no + 1, sizeof(block_address *));
 
+	// Get the block address for each block affected by the write operation
 	for (int i = start_block_no; i <= end_block_no; ++i)
 	{
 		addresses[i] = (block_address *)calloc(1, sizeof(block_address));
@@ -354,55 +425,96 @@ block_address **get_affected_blocks_addresses(int inum, int offset, int length, 
 		addresses[i]->segment_no = tmp.segment_no;
 		addresses[i]->block_no = tmp.block_no;
 	}
-	// printf("start block: %d end block: %d\n",start_block_no,end_block_no );
+
+	// Calculate the number of blocks affected by the write operation
 	*number_blocks_affected = end_block_no - start_block_no + 1;
 
 	return addresses;
 }
 
+
+/**
+ * Returns the block address for a given block index in the inode.
+ *
+ * @param inum          The inode number.
+ * @param block_index   The index of the block.
+ *
+ * @return              Returns the block address for the given block index in the inode.
+ */
 block_address get_block_address(int inum, int block_index)
 {
+	// Initialize the block address
 	block_address address;
 	address.segment_no = -1;
 	address.block_no = -1;
 
+	// Get the inode for the given inode number
 	i_node *tmp = get_inode(inum);
 
+	// If the block is a direct block, return the block address from the direct block array
 	if (block_index < 4)
 	{
 		return tmp->direct_block[block_index];
 	}
+	// If the block is an indirect block, read the indirect block addresses into memory and return the block address from the indirect block array
 	else
 	{
 		block_address indirect_addresses[sp->block_size_in_sectors * 512 / sizeof(block_address)];
 		Log_Read(tmp->indirect_block, sp->block_size_in_sectors * 512, (void *)(&indirect_addresses));
-		// printf("indirect_address %d: <%d,%d>.\n", block_index-4,indirect_addresses[block_index-4].segment_no,indirect_addresses[block_index-4].block_no);
 		return indirect_addresses[block_index - 4];
 	}
 }
 
+
+/**
+ * Returns the file type for a given inode number.
+ *
+ * @param inum          The inode number.
+ *
+ * @return              Returns the file type for the given inode number.
+ */
 int get_file_type(int inum)
 {
+	// Get the inode for the given inode number
 	i_node *tmp = get_inode(inum);
 
+	// Return the file type from the inode
 	return tmp->file_type;
 }
 
+
+/**
+ * Returns the size of the file for a given inode number.
+ *
+ * @param inum          The inode number.
+ *
+ * @return              Returns the size of the file for the given inode number.
+ */
 int get_file_size(int inum)
 {
+	// Get the inode for the given inode number
 	i_node *tmp = get_inode(inum);
 
+	// Return the end of file index plus one from the inode
 	return tmp->eof_index_in_bytes + 1;
 }
 
+
+/**
+ * Returns the inode for a given inode number.
+ *
+ * @param inum          The inode number.
+ *
+ * @return              Returns the inode for the given inode number.
+ */
 i_node *get_inode(int inum)
 {
+	// Initialize the inode address
 	block_address INode_address;
 	INode_address.segment_no = -1;
 	INode_address.block_no = -1;
 
-	i_node *tmp = (i_node *)calloc(1, sizeof(i_node));
-
+	// Search the IFILE for the inode address associated with the given inode number
 	for (int i = 0; i < sp->i_node_mapping_count; ++i)
 	{
 		if (IFile[i]->i_num == inum)
@@ -412,14 +524,17 @@ i_node *get_inode(int inum)
 		}
 	}
 
+	// If the inode address is not found, return an empty inode with an inode number of -1
 	if (INode_address.segment_no == -1)
 	{
 		printf("File Inode not found for %d.\n", inum);
+		i_node *tmp = (i_node *)calloc(1, sizeof(i_node));
 		tmp->i_num = -1;
 		return tmp;
 	}
 
+	// Read the inode into memory and return it
+	i_node *tmp = (i_node *)calloc(1, sizeof(i_node));
 	Log_Read(INode_address, sizeof(i_node), (void *)tmp);
-
 	return tmp;
 }
