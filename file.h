@@ -1,5 +1,5 @@
-int file_create(int file_type);
-int file_write(int inum, int offset, int length, void *buffer);
+int create_file(int file_type);
+int write_to_file(int inum, int offset, int length, void *buffer);
 int file_read(int inum, int offset, int length, void *buffer);
 block_address **write_buffer_to_appropriate_blocks(block_address **block_addresses, int number_blocks_affected, void *buffer, int offset, int length, int inum);
 block_address **get_affected_blocks_addresses(int inum, int offset, int length, int *number_blocks_affected);

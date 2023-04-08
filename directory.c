@@ -18,7 +18,7 @@
 int directory_create(int parent_directory_inum, char *directory_name)
 {
 	// Create a special file for storing the information inside the directory
-	int my_inum = file_create(1);
+	int my_inum = create_file(1);
 
 	// Create entries for the directory
 	DirectoryEntry entries[2];
@@ -30,7 +30,7 @@ int directory_create(int parent_directory_inum, char *directory_name)
 	entries[1].i_num = parent_directory_inum;
 
 	// Write the entries to the file
-	file_write(my_inum, 0, sizeof(entries), &entries);
+	write_to_file(my_inum, 0, sizeof(entries), &entries);
 
 	// If the directory is not the root directory, update the parent directory entries
 	if (parent_directory_inum != -1)
@@ -177,7 +177,7 @@ int remove_child_entry_from_parent_directory(int inum, int child_inum)
 	}
 
 	// Write the updated directory entries to the parent directory
-	file_write(inum, 0, sizeof(entries), (void *)&entries);
+	write_to_file(inum, 0, sizeof(entries), (void *)&entries);
 
 	// Return success
 	return 0;
@@ -259,7 +259,7 @@ int add_child_entry_to_parent_directory(int inum, char *child_name, int child_in
 	memcpy(&entries[entry_count], &last_entry, sizeof(DirectoryEntry));
 
 	// Write the updated directory entries to the parent directory
-	file_write(inum, 0, sizeof(entries), &entries);
+	write_to_file(inum, 0, sizeof(entries), &entries);
 
 	// Return 0 to indicate success
 	return 0;

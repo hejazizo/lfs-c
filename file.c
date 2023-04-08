@@ -6,105 +6,116 @@
 #include <math.h>
 #include <string.h>
 
-int file_create(int file_type)
+/*
+ * Creates a new file of the given file_type and returns the newly generated i-num.
+ * Initializes the file's inode and saves it in a block using the Log_Write function.
+ * Also updates the i-file and super segment.
+ *
+ * @param file_type the type of the file to create (0 for regular file, 1 for directory)
+ * @return the newly generated i-num for the created file
+ */
+int create_file(int file_type)
 {
-	// generate i-num
-	int inum = sp->next_inum;
-	(sp->next_inum)++;
+    // Generate a new i-num
+    int inum = sp->next_inum;
+    (sp->next_inum)++;
 
-	// create an inode
-	i_node file_inode;
+    // Create a new inode for the file
+    i_node file_inode;
+    file_inode.i_num = inum;
+    file_inode.file_type = file_type;
+    file_inode.file_size_in_blocks = 0;
+    file_inode.eof_index_in_bytes = 0;
 
-	file_inode.i_num = inum;
-	file_inode.file_type = file_type;
-	file_inode.file_size_in_blocks = 0;
-	file_inode.eof_index_in_bytes = 0;
+    // Initialize the 4 direct data block addresses to null and the file size to zero.
+    // When writing to the file, check if there is enough space available and initialize new blocks if necessary.
+    block_address null_block = {-1, -1};
+    file_inode.direct_block[0] = null_block;
+    file_inode.direct_block[1] = null_block;
+    file_inode.direct_block[2] = null_block;
+    file_inode.direct_block[3] = null_block;
 
-	// initialize the 4 direct data blocks addresses to null and the file size to zero.
-	// when writing to file, check if enough space we have and if not so, initialize the blocks.
+    // Allocate space for the indirect block and initialize its addresses to null
+    block_address *indirect = (block_address *)calloc(1, sizeof(block_address));
+    block_address indirect_addresses[sp->block_size_in_sectors * 512 / sizeof(block_address)];
+    for (int i = 0; i < sp->block_size_in_sectors * 512 / sizeof(block_address); ++i)
+    {
+        indirect_addresses[i] = null_block;
+    }
 
-	block_address dirct_0;
-	dirct_0.segment_no = -1;
-	dirct_0.block_no = -1;
+    // Write the indirect block to the log
+    char *desc = (char *)malloc(31 * sizeof(char));
+    sprintf(desc, "Indirect Block for inum: %d", inum);
+    Log_Write(indirect, inum, -1, sizeof(indirect_addresses), (void *)(&indirect_addresses), desc);
 
-	block_address dirct_1;
-	dirct_1.segment_no = -1;
-	dirct_1.block_no = -1;
+    // Set the indirect block address in the inode
+    file_inode.indirect_block.segment_no = indirect->segment_no;
+    file_inode.indirect_block.block_no = indirect->block_no;
 
-	block_address dirct_2;
-	dirct_2.segment_no = -1;
-	dirct_2.block_no = -1;
+    // Set the timestamps for the inode to the current time
+    time_t now = time(NULL);
+    file_inode.modify_Time = now;
+    file_inode.access_Time = now;
+    file_inode.create_Time = now;
+    file_inode.change_Time = now;
 
-	block_address dirct_3;
-	dirct_3.segment_no = -1;
-	dirct_3.block_no = -1;
+    // Save the inode in a block using the Log_Write function
+    block_address *address = (block_address *)calloc(1, sizeof(block_address));
+    desc = (char *)malloc(31 * sizeof(char));
+    sprintf(desc, "Inode for inum: %d", inum);
+    Log_Write(address, inum, -1, 0, ((void *)&file_inode), desc);
 
-	block_address *indirect = (block_address *)calloc(1, sizeof(block_address));
-	block_address indirect_addresses[sp->block_size_in_sectors * 512 / sizeof(block_address)];
+    // Update the i-file and the super segment
+    i_node_block_address_mapping new_file_mapping;
+    new_file_mapping.i_num = inum;
+    new_file_mapping.i_node_address = *address;
+    Log_Add_mapping(new_file_mapping);
 
-	for (int i = 0; i < sp->block_size_in_sectors * 512 / sizeof(block_address); ++i)
-	{
-		indirect_addresses[i].segment_no = -1;
-		indirect_addresses[i].block_no = -1;
-	}
-
-	char *desc = (char *)malloc(31 * sizeof(char));
-	sprintf(desc, "Indirect Block for inum: %d", inum);
-
-	Log_Write(indirect, inum, -1, sizeof(sp->block_size_in_sectors * 512), (void *)(&indirect_addresses), desc);
-
-	file_inode.direct_block[0] = dirct_0;
-	file_inode.direct_block[1] = dirct_1;
-	file_inode.direct_block[2] = dirct_2;
-	file_inode.direct_block[3] = dirct_3;
-
-	file_inode.indirect_block.segment_no = indirect->segment_no;
-	file_inode.indirect_block.block_no = indirect->block_no;
-
-	time_t now = time(NULL);
-
-	file_inode.modify_Time = now;
-	file_inode.access_Time = now;
-	file_inode.create_Time = now;
-	file_inode.change_Time = now;
-
-	// save the inode in a block using the log write
-	block_address *address = (block_address *)calloc(1, sizeof(block_address));
-
-	desc = (char *)malloc(31 * sizeof(char));
-	sprintf(desc, "Inode for inum: %d", inum);
-
-	Log_Write(address, inum, -1, 0, ((void *)&file_inode), desc);
-
-	// update ifile and the super segment
-	i_node_block_address_mapping new_file_mapping;
-	new_file_mapping.i_num = inum;
-	new_file_mapping.i_node_address = *address;
-
-	Log_Add_mapping(new_file_mapping);
-
-	return inum;
+    // Return the newly generated i-num for the created file
+    return inum;
 }
 
-int file_write(int inum, int offset, int length, void *buffer)
+
+/*
+ * Writes the given buffer to the file with the given i-num, starting at the given offset and continuing for the given length.
+ * Calculates the affected blocks and writes the buffer to those blocks using the write_buffer_to_appropriate_blocks function.
+ * Reads and updates the file's inode, writes it to the new location, and updates the i-file with the new mapping.
+ *
+ * @param inum the i-num of the file to write to
+ * @param offset the offset at which to start writing in bytes
+ * @param length the length of the data to write in bytes
+ * @param buffer the buffer containing the data to write
+ * @return 0 on success, -1 on error
+ */
+int write_to_file(int inum, int offset, int length, void *buffer)
 {
-	// calculate affected blocks and find their segment and block no for change in Inode
-	// also need to check whether those block exists or not (-1 for segment means not exist)
-	int *number_blocks_affected = (int *)calloc(1, sizeof(int));
-	block_address **block_addresses = get_affected_blocks_addresses(inum, offset, length, number_blocks_affected);
+    // Calculate affected blocks and find their segment and block number for changes in the inode
+    int num_blocks_affected = 0;
+    block_address **block_addresses = get_affected_blocks_addresses(inum, offset, length, &num_blocks_affected);
 
-	// write the buffer to appropriate blocks
-	block_address **new_block_addresses = write_buffer_to_appropriate_blocks(block_addresses, *number_blocks_affected, buffer, offset, length, inum);
+    // Write the buffer to the appropriate blocks
+    block_address **new_block_addresses = write_buffer_to_appropriate_blocks(block_addresses, num_blocks_affected, buffer, offset, length, inum);
 
-	// read the Inode and change it to new value
-	// write the Inode to the new location
-	// update the IFile with the new mapping
-	int block_size_in_bytes = sp->block_size_in_sectors * 512;
-	int first_affected_block_index = (int)floor((float)offset / block_size_in_bytes);
-	update_inode_after_write(inum, first_affected_block_index, *number_blocks_affected, new_block_addresses, offset + length - 1);
+    // Update the inode after writing the buffer to the blocks
+    int block_size_in_bytes = sp->block_size_in_sectors * 512;
+    int first_affected_block_index = (int)floor((float)offset / block_size_in_bytes);
+    update_inode_after_write(inum, first_affected_block_index, num_blocks_affected, new_block_addresses, offset + length - 1);
 
-	return 0;
+    // Free memory allocated for block addresses
+    for (int i = 0; i < num_blocks_affected; i++) {
+        free(block_addresses[i]);
+    }
+    free(block_addresses);
+
+    for (int i = 0; i < num_blocks_affected; i++) {
+        free(new_block_addresses[i]);
+    }
+    free(new_block_addresses);
+
+    // Return 0 on success
+    return 0;
 }
+
 
 int file_read(int inum, int offset, int length, void *buffer)
 {
