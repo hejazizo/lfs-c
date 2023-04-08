@@ -57,8 +57,8 @@ typedef struct segment_summary_entity
 
 } segment_summary_entity;
 
-int Log_Create(char *file_n, int bl_size, int seg_size, int log_size, int wear_lim);
-int Log_Initialize(char *file_n, int cache_size);
+int log_create(char *file_n, int bl_size, int seg_size, int log_size, int wear_lim);
+int initialize_log_system(char *file_n, int cache_size);
 int Log_Write(block_address *saved_address, int file_inum, int file_block_no, int length, void *buffer, char *desc);
 int Log_Read(block_address address, int length, void *buffer);
 int Log_Read_IFile();
@@ -67,7 +67,7 @@ int Log_Add_mapping(i_node_block_address_mapping mapping);
 int Update_SuperSegment();
 int Log_Erase(int segment_no, int length_in_segments);
 void Print_IFile();
-int Flush_Tail_Segment_To_Disk();
+int flush_tail_segment_to_disk();
 int Log_Write_IFile_First_Time();
 int Log_Remove_mapping(int inum);
 int Update_Last_Segment_Summary_Block(int block_no, char *desc);

@@ -27,7 +27,7 @@ void **cached_segments;
 int *available_segments;
 
 // the function to create a flash file and saves the metadata on that. It is called from mklfs
-int Log_Create(char *file_n, int bl_size, int seg_size, int log_size, int wear_lim)
+int log_create(char *file_n, int bl_size, int seg_size, int log_size, int wear_lim)
 {
 	// Saving the metadata paramenters in the supersegment global variable
 	sp = (supersegment *)calloc(1, sizeof(supersegment));
@@ -107,7 +107,7 @@ int Log_Create(char *file_n, int bl_size, int seg_size, int log_size, int wear_l
 }
 
 // a function to initialize the supersegment global variable from the flash by opening and reading the first sector from it.
-int Log_Initialize(char *file_n, int cache_size)
+int initialize_log_system(char *file_n, int cache_size)
 {
 	printf("Initializing the log file...\n");
 	int *blocks = (int *)calloc(1, sizeof(int));
@@ -277,13 +277,13 @@ int Log_Write(block_address *saved_address, int file_inum, int file_block_no, in
 
 	if (last_block_number_in_segment == sp->segment_size_in_blocks - 15)
 	{
-		Flush_Tail_Segment_To_Disk();
+		flush_tail_segment_to_disk();
 	}
 
 	return 0;
 }
 
-int Flush_Tail_Segment_To_Disk()
+int flush_tail_segment_to_disk()
 {
 	last_block_number_in_segment = 1;
 

@@ -8,19 +8,27 @@
 #include "directory.h"
 #include "lfsck.h"
 
+/**
+ * The main function that initializes the log system and performs various operations.
+ *
+ * @param argc The number of command-line arguments.
+ * @param argv An array of command-line arguments.
+ * @return 0 on successful execution.
+ */
 int main(int argc, char *argv[])
 {
+    // Initialize the log system with the last command-line argument as the file name and no cache.
+    initialize_log_system(argv[argc - 1], 0);
 
-	// write a call int Log_Initialize(char *file_n,int cache_size) to initialize the log
-	Log_Initialize(argv[argc - 1], 0);
+    // Perform various operations on the log system.
+    print_ifile();
+    print_segment_summary_blocks();
+    in_use_inodes_with_no_data();
+    useless_entries();
 
-	Print_IFile();
-	print_segment_summary_blocks();
-	in_use_inodes_with_no_data();
-	useless_entries();
-
-	return 0;
+    return 0;
 }
+
 
 void print_segment_summary_blocks()
 {

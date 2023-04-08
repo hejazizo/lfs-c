@@ -9,7 +9,7 @@
 int main(int argc, char *argv[])
 {
 	// print hello world
-	Log_Initialize("sadaf", 0);
+	initialize_log_system("flash.dat", 0);
 
 	directory_create(1, "a");
 	directory_create(1, "b");
