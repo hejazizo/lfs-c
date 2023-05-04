@@ -52,3 +52,13 @@ Mkfile.old
 dkms.conf
 
 *.
+
+
+flash.dat
+.DS_Store
+main_fuse
+lfs_fuse
+tmp/
+mklfs
+test
+.idea/
