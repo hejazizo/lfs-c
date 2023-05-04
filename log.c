@@ -26,6 +26,14 @@ int num_segments_cached = 0;
 void **cache_segments_ptr;
 int *free_segments_idx;
 
+int getFlashSize() {
+	return (sp->flash_or_log_size_in_segments * sp->segment_size_in_blocks * sp->block_size_in_sectors) / 16;
+}
+
+int getSegmentSizeInSectors() {
+	return sp->segment_size_in_blocks * sp->block_size_in_sectors;
+}
+
 // the function to create a flash file and saves the metadata on that. It is called from mklfs
 int log_create(char *new_file_name, int blk_size, int seg_size, int log_file_size, int wear_limit)
 {
@@ -76,7 +84,7 @@ int log_create(char *new_file_name, int blk_size, int seg_size, int log_file_siz
 	Flash_Create(new_file_name, sp->wear_limit_for_earased_blocks, flash_size);
 	// -------- Opening the flash and saving the metadata in the super segment (first segment) --------
 	// a space to save the total number of blocks
-	int *blocks = (int *)calloc(1, sizeof(int));
+	u_int *blocks = (u_int *)calloc(1, sizeof(int));
 	Flash *flash;
 	flash = Flash_Open(new_file_name, FLASH_SILENT, blocks);
 
@@ -104,7 +112,7 @@ int log_create(char *new_file_name, int blk_size, int seg_size, int log_file_siz
 int initialize_log_system(char *new_file_name, int cache_size)
 {
 	printf("Initializing the log file...\n");
-	int *blocks = (int *)calloc(1, sizeof(int));
+	u_int *blocks = (u_int *)calloc(1, sizeof(int));
 
 	Flash *flash;
 	flash = Flash_Open(new_file_name, FLASH_SILENT, blocks);
@@ -191,7 +199,7 @@ int Log_Read(block_address address, int length, void *buffer)
     {
         printf(">>>> reading from FLASH segment.\n");
         // Open the flash drive
-        int *blocks = (int *)calloc(1, sizeof(int));
+        u_int *blocks = (u_int *)calloc(1, sizeof(int));
         Flash *flash;
         flash = Flash_Open(flash_drive_name, FLASH_SILENT, blocks);
         Flash_Read(flash, segment_no * size_segment_in_sectors, size_segment_in_sectors, temporary_buffer);
@@ -266,17 +274,19 @@ int Log_Write(block_address *saved_address, int file_inum, int file_block_no, in
 int flush_tail_segment_to_disk()
 {
     last_written_block_number = 1;
-	int *blocks = (int *)calloc(1, sizeof(int));
+	u_int *blocks = (u_int *)calloc(1, sizeof(int));
 	Flash *flash;
 	flash = Flash_Open(flash_drive_name, FLASH_SILENT, blocks);
 	int size_segment_in_sectors = sp->segment_size_in_blocks * sp->block_size_in_sectors; // 32*2=64
 	// printf("last segment number in log: %d\n", sp->next_segment_number_in_log);
-	int result = Flash_Write(flash, sp->next_segment_number_in_log * size_segment_in_sectors, size_segment_in_sectors, (void *)tail_write_buffer);
+	Flash_Write(flash, sp->next_segment_number_in_log * size_segment_in_sectors, size_segment_in_sectors, (void *)tail_write_buffer);
 	Flash_Close(flash);
 	(sp->next_segment_number_in_log)++;
 	free(tail_write_buffer);
     tail_write_buffer = (void *)calloc(size_segment_in_sectors * 512, sizeof(char));
 	Update_SuperSegment();
+
+	return 0;
 }
 
 // it is used to load the IFILE from the segment 1 to the memory for easy use
@@ -294,6 +304,8 @@ int Log_Read_IFile()
         i++;
     }
 	// inodeFilePrint();
+
+	return 0;
 }
 
 void inodeFilePrint()
@@ -322,17 +334,17 @@ int Log_Write_IFile_First_Time()
         i++;
     }
     // allocate a pointer for the blocks
-	int *blocks = (int *)calloc(1, sizeof(int));
+	u_int *blocks = (u_int *)calloc(1, sizeof(int));
     // open the flash
 	Flash *flash;
 	flash = Flash_Open(flash_drive_name, FLASH_SILENT, blocks);
-	int size_segment_in_sectors = sp->segment_size_in_blocks * sp->block_size_in_sectors;
+	// int size_segment_in_sectors = sp->segment_size_in_blocks * sp->block_size_in_sectors;
     // get the address of the sector in the file
 	int sector_address = (sp->i_node_of_i_file.direct_block[0].segment_no * sp->segment_size_in_blocks + sp->i_node_of_i_file.direct_block[0].block_no) * sp->block_size_in_sectors;
-	int address_in_erase_blocks = sector_address / 16;
+	// int address_in_erase_blocks = sector_address / 16;
 	Log_Erase(1, 1);
     // Write the buffer to the flash
-	int result = Flash_Write(flash, sector_address, (4 * sp->block_size_in_sectors), (void *)buffer);
+	Flash_Write(flash, sector_address, (4 * sp->block_size_in_sectors), (void *)buffer);
 	Flash_Close(flash);
 	return 0;
 }
@@ -351,15 +363,15 @@ int Log_Write_IFile()
         i++;
     }
     // allocate a pointer for the blocks
-	int *blocks = (int *)calloc(1, sizeof(int));
+	u_int *blocks = (u_int *)calloc(1, sizeof(int));
     // open the flash
     Flash *flash;
 	flash = Flash_Open(flash_drive_name, FLASH_SILENT, blocks);
-	int size_segment_in_sectors = sp->segment_size_in_blocks * sp->block_size_in_sectors; // 32*2=64
+	// int size_segment_in_sectors = sp->segment_size_in_blocks * sp->block_size_in_sectors; // 32*2=64
 	int sector_address = (sp->i_node_of_i_file.direct_block[0].segment_no * sp->segment_size_in_blocks + sp->i_node_of_i_file.direct_block[0].block_no) * sp->block_size_in_sectors;
-	int address_in_erase_blocks = sector_address / 16;
+	// int address_in_erase_blocks = sector_address / 16;
 	Log_Erase(1, 1);
-	int result = Flash_Write(flash, sector_address, (4 * sp->block_size_in_sectors), (void *)buffer);
+	Flash_Write(flash, sector_address, (4 * sp->block_size_in_sectors), (void *)buffer);
 	Flash_Close(flash);
 	return 0;
 }
@@ -380,7 +392,7 @@ int Log_Add_mapping(i_node_block_address_mapping mapping)
 
 int Log_Remove_mapping(int inum)
 {
-	int max_num_mappings = (4 * sp->block_size_in_sectors * 512) / sizeof(i_node_block_address_mapping);
+	// int max_num_mappings = (4 * sp->block_size_in_sectors * 512) / sizeof(i_node_block_address_mapping);
 	int indx = -1;
     int i = 0;
     while (i < sp->i_node_mapping_count) {
@@ -418,7 +430,7 @@ int Log_Remove_mapping(int inum)
 int Log_Erase(int segment_no, int length_in_segments)
 {
     // Allocate a pointer for the blocks.
-    int *blocks = (int *)calloc(1, sizeof(int));
+    u_int *blocks = (u_int *)calloc(1, sizeof(int));
     // Open the flash.
 	Flash *flash;
 	flash = Flash_Open(flash_drive_name, FLASH_SILENT, blocks);
@@ -431,7 +443,7 @@ int Log_Erase(int segment_no, int length_in_segments)
 // updates the supersegment at segment zero
 int Update_SuperSegment()
 {
-	int *blocks = (int *)calloc(1, sizeof(int));
+	u_int *blocks = (u_int *)calloc(1, sizeof(int));
     // Open the flash.
     Flash *flash;
 	flash = Flash_Open(flash_drive_name, FLASH_SILENT, blocks);
@@ -439,10 +451,10 @@ int Update_SuperSegment()
     int size_segment_in_sectors = sp->segment_size_in_blocks * sp->block_size_in_sectors;
     // Erase the first segment.
     Log_Erase(0, 1);
-	int w = Flash_Write(flash, 0, size_segment_in_sectors, (void *)sp);
+	Flash_Write(flash, 0, size_segment_in_sectors, (void *)sp);
 	Flash_Close(flash);
     // Return the result of the write operation.
-    return w;
+    return 0;
 }
 
 int Update_Last_Segment_Summary_Block(int block_no, char *desc)

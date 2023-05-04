@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
     int segment_size_in_blocks = DEFAULT_SEGMENT_SIZE_IN_BLOCKS;
     int flash_or_log_size_in_segments = DEFAULT_FLASH_OR_LOG_SIZE_IN_SEGMENTS;
     int wear_limit_for_erased_blocks = DEFAULT_WEAR_LIMIT_FOR_ERASED_BLOCKS;
-    char* file_name = DEFAULT_FILE_NAME;
+    char* file_name = (char*)(DEFAULT_FILE_NAME);
 
 	if (argc == 1) {
 		printf("Usage: mklfs [-b block_size_in_sectors] [-l segment_size_in_blocks] [-s flash_or_log_size_in_segments] [-w wear_limit_for_erased_blocks] [file_name]\n");
