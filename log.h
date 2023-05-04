@@ -66,7 +66,7 @@ int Log_Write_IFile();
 int Log_Add_mapping(i_node_block_address_mapping mapping);
 int Update_SuperSegment();
 int Log_Erase(int segment_no, int length_in_segments);
-void Print_IFile();
+void inodeFilePrint();
 int flush_tail_segment_to_disk();
 int Log_Write_IFile_First_Time();
 int Log_Remove_mapping(int inum);

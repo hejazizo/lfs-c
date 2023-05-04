@@ -6,14 +6,11 @@
 #include <math.h>
 #include <string.h>
 
-/*
- * Creates a new file of the given file_type and returns the newly generated i-num.
- * Initializes the file's inode and saves it in a block using the Log_Write function.
- * Also updates the i-file and super segment.
- *
- * @param file_type the type of the file to create (0 for regular file, 1 for directory)
- * @return the newly generated i-num for the created file
- */
+// this function creates a new file with the specified file_type and returns the newly generated i-num.
+// initializes the file's inode and stores it in a block using the Log_Write function.
+// Also, updates the i-file and super segment.
+// parameter file_type The type of file to create (0 for regular file, 1 for directory)
+// it returns The newly generated i-num for the created file
 int create_file(int file_type)
 {
 // Generate a new i-num
@@ -78,8 +75,12 @@ Log_Add_mapping(new_file_mapping);
 return inum;
 }
 
-
-
+//This function writes the given buffer to a file with the specified i-num, starting from the given offset and extending for the specified length
+//calculates the blocks affected by the write and writes the buffer to those blocks using the write_buffer_to_appropriate_blocks function
+//Reads and updates the file's inode, writes it to the new location, and updates the i-file with the new mapping
+// parameters inum The i-num of the file to write to, offset The offset in bytes at which to start writing,
+// length The length of the data to write in bytes, buffer The buffer containing the data to write
+// returns 0 on success, -1 on failure
 int write_to_file(int inum, int offset, int length, void *buffer) {
     // Calculate affected blocks and find their segment and block number for changes in the inode
     int num_blocks_affected = 0;
@@ -117,13 +118,12 @@ int write_to_file(int inum, int offset, int length, void *buffer) {
     return 0;
 }
 
-
-
-
-
-
-
-
+//function that reads data from a specified number of blocks into a buffer.
+//parameters in the function: block_addresses: A pointer to an array of block addresses.
+//num_blocks_affected: The number of blocks to read.
+//offset: The offset into the buffer where the data should be written.
+//length: The length of the data to read.
+//buffer: The buffer where the data should be written.
 int read_blocks_to_buffer(block_address **block_addresses, int num_blocks_affected, int offset, int length, void *buffer) {
 // Calculate the block size in bytes
 int block_size_bytes = sp->block_size_in_sectors * 512;
@@ -145,26 +145,26 @@ for (int i = 0; i < num_blocks_affected; ++i) {
     }
 
     // Determine the appropriate starting index and length for the current block
-    int buffer_start_index = -1;
+    int buffer_start_pos = -1;
     int temp_start_index = -1;
     int new_length = -1;
 
     if (i == 0) {
         temp_start_index = offset % block_size_bytes;
-        buffer_start_index = 0;
+        buffer_start_pos = 0;
         new_length = (block_size_bytes < length) ? block_size_bytes - temp_start_index : length;
     } else if (i == num_blocks_affected - 1) {
         temp_start_index = 0;
         new_length = (offset + length - 1) % block_size_bytes + 1;
-        buffer_start_index = offset + length - new_length;
+        buffer_start_pos = offset + length - new_length;
     } else {
         temp_start_index = 0;
         new_length = block_size_bytes;
-        buffer_start_index = (i - 1) * block_size_bytes + (block_size_bytes - offset % block_size_bytes);
+        buffer_start_pos = (i - 1) * block_size_bytes + (block_size_bytes - offset % block_size_bytes);
     }
 
     // Write the data from the temporary buffer to the main buffer
-    memcpy(buffer + buffer_start_index, temp_buffer + temp_start_index, new_length);
+    memcpy(buffer + buffer_start_pos, temp_buffer + temp_start_index, new_length);
 
     // Free the memory allocated for the temporary buffer
     free(temp_buffer);
@@ -189,17 +189,17 @@ for (int i = 0; i < number_blocks_affected; ++i)
     Log_Read(tmp_address, sp->block_size_in_sectors * 512, tmp_buffer);
 
     // find the appropriate starting index and length
-    int buffer_start_index = -1;
-    int tmp_start_index = -1;
+    int buffer_start_pos = -1;
+    int temp_start_pos = -1;
     int new_length = -1;
 
     if (i == 0)
     {
-        tmp_start_index = offset % block_size_in_bytes;
-        buffer_start_index = 0;
+        temp_start_pos = offset % block_size_in_bytes;
+        buffer_start_pos = 0;
         if (block_size_in_bytes < length)
         {
-            new_length = block_size_in_bytes - tmp_start_index;
+            new_length = block_size_in_bytes - temp_start_pos;
         }
         else
         {
@@ -208,20 +208,20 @@ for (int i = 0; i < number_blocks_affected; ++i)
     }
     else if (i == number_blocks_affected - 1)
     {
-        tmp_start_index = 0;
+        temp_start_pos = 0;
         new_length = (offset + length - 1) % block_size_in_bytes + 1;
-        buffer_start_index = offset + length - new_length;
+        buffer_start_pos = offset + length - new_length;
     }
     else
     {
-        tmp_start_index = 0;
+        temp_start_pos = 0;
         new_length = block_size_in_bytes;
-        buffer_start_index = (i - 1) * (block_size_in_bytes) + (block_size_in_bytes - offset % block_size_in_bytes);
+        buffer_start_pos = (i - 1) * (block_size_in_bytes) + (block_size_in_bytes - offset % block_size_in_bytes);
     }
 
     // write to the buffer
-    memcpy(buffer + (buffer_start_index), tmp_buffer + (tmp_start_index), (new_length));
-    printf("Read From %d to %d. \n", tmp_start_index,tmp_start_index+new_length-1);
+    memcpy(buffer + (buffer_start_pos), tmp_buffer + (temp_start_pos), (new_length));
+    printf("Read From %d to %d. \n", temp_start_pos,temp_start_pos+new_length-1);
 }
 
 return 0;
@@ -246,16 +246,10 @@ int read_from_file(int inum, int offset, int length, void *buffer)
     return 0;
 }
 
-
-
-/*
- * Writes the given buffer to the file with the given i-num, starting at the given offset and continuing for the given length.
- * Calculates the affected blocks and writes the buffer to those blocks using the write_buffer_to_appropriate_blocks function.
- * Reads and updates the file's inode, writes it to the new location, and updates the i-file with the new mapping.
- */
-
-
-
+//Calculate the number of affected blocks. Calculate the starting block index.
+//Write the buffer to the affected blocks, using the write_buffer_to_appropriate_blocks function.
+//Read and update the file's inode, Write the file's inode to the new location.
+// Update the i-file with the new mapping.
 block_address **write_buffer_to_appropriate_blocks(block_address **oldBlockAddresses, int numBlocksAffected, void *buffer, int offset, int length, int inum) {
     // Allocate space to store new block addresses for the INODE to be returned
     block_address **newBlockAddresses = (block_address **)calloc(numBlocksAffected, sizeof(block_address *));
@@ -319,13 +313,8 @@ block_address **write_buffer_to_appropriate_blocks(block_address **oldBlockAddre
 }
 
 
-
-
-/*
- * Reads the entire contents of the file with the given i-num from the beginning to the end.
- * Gets the file's inode to determine the size of the file and reads the data into the buffer.
- */
-
+//Reads the entire contents of the file with the given i-num from the beginning to the end.
+//Gets the file's inode to determine the size of the file and reads the data into the buffer.
 int read_file_from_start_to_end(int inum, void *buffer)
 {
     // Get the file's inode to determine the size of the file
@@ -351,13 +340,9 @@ int free_file(int inum)
     return 0;
 }
 
-
-
-
-/**
- * Updates the inode information after a write operation.
- */
-
+//Get the inode for the file that was written to.
+//Update the inode's size and modification time
+//Write the inode back to disk
 int update_inode_after_write(int inum, int first_block_index, int number_blocks_affected, block_address **new_block_addresses, int eof_index)
 {
 	// Get the current inode for the given inode number
@@ -418,11 +403,8 @@ int update_inode_after_write(int inum, int first_block_index, int number_blocks_
 	return 0;
 }
 
-
-/**
-* Returns the block addresses affected by a write operation.
-* @return                      Returns an array of block addresses affected by the write operation.
-*/
+//Returns a list of block addresses that were affected by a write operation.
+//The list is returned in the order in which the blocks were affected
 block_address **get_affected_blocks_addresses(int inum, int offset, int length, int *number_blocks_affected)
 {
 	// Calculate the start and end block numbers affected by the write operation
@@ -448,15 +430,9 @@ block_address **get_affected_blocks_addresses(int inum, int offset, int length, 
 	return addresses;
 }
 
-
-/**
- * Returns the block address for a given block index in the inode.
- *
- * @param inum          The inode number.
- * @param block_index   The index of the block.
- *
- * @return              Returns the block address for the given block index in the inode.
- */
+//Returns the block address for a given block index in the inode
+//Parameters: inum: The inode number, block_index: The index of the block
+//Returns: The block address for the given block index in the inode.
 block_address get_block_address(int inum, int block_index)
 {
 	// Initialize the block address
@@ -481,11 +457,7 @@ block_address get_block_address(int inum, int block_index)
 	}
 }
 
-
-/**
- * Returns the file type for a given inode number.
-          Returns the file type for the given inode number.
- */
+//Returns the file type for a given inode number.
 int get_file_type(int inum)
 {
 	// Get the inode for the given inode number
@@ -495,14 +467,9 @@ int get_file_type(int inum)
 	return tmp->file_type;
 }
 
-
-/**
- * Returns the size of the file for a given inode number.
- *
- * @param inum          The inode number.
- *
- * @return              Returns the size of the file for the given inode number.
- */
+//Gets the size of a file for a given inode number.
+// parameters: inum: The inode number
+// returns the The size of the file in bytes
 int get_file_size(int inum)
 {
 	// Get the inode for the given inode number
@@ -513,9 +480,9 @@ int get_file_size(int inum)
 }
 
 
-/**
- * Returns the inode for a given inode number.
- */
+//Returns the inode for a given inode number.
+// the function searches the IFILE for the inode address associated with the given inode number
+//If the inode address is found, the function reads the inode into memory and returns it, otherwise it returns an empty inode.
 i_node *get_inode(int inum)
 {
 	// Initialize the inode address
