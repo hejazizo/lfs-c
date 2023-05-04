@@ -209,7 +209,7 @@ block_address **write_buffer_to_appropriate_blocks(block_address **block_address
     int start_block_no = (int)ceil((float)offset / block_size_in_bytes);
 
     // Divide the buffer into an array of smaller buffers, each to be written to one block
-    void **buffers = (void **)calloc(number_blocks_affected, sizeof(void *));
+    // void **buffers = (void **)calloc(number_blocks_affected, sizeof(void *));
 
     for (int i = 0; i < number_blocks_affected; ++i)
     {

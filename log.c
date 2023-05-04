@@ -26,6 +26,14 @@ int total_segments_in_cache = 0;
 void **cached_segments;
 int *available_segments;
 
+int getFlashSize() {
+	return (sp->flash_or_log_size_in_segments * sp->segment_size_in_blocks * sp->block_size_in_sectors) / 16;
+}
+
+int getSegmentSizeInSectors() {
+	return sp->segment_size_in_blocks * sp->block_size_in_sectors;
+}
+
 // the function to create a flash file and saves the metadata on that. It is called from mklfs
 int log_create(char *file_n, int bl_size, int seg_size, int log_size, int wear_lim)
 {
@@ -72,20 +80,19 @@ int log_create(char *file_n, int bl_size, int seg_size, int log_size, int wear_l
 	sp->i_node_mapping_count = 0;
 
 	// Creating the flash file (flash size in erase blocks)
-	int flash_size = (sp->flash_or_log_size_in_segments * sp->segment_size_in_blocks * sp->block_size_in_sectors) / 16;
-	Flash_Create(file_n, sp->wear_limit_for_earased_blocks, flash_size);
+	Flash_Create(file_n, sp->wear_limit_for_earased_blocks,  getFlashSize());
 
 	// -------- Opening the flash and saving the metadata in the super segment (first segment) --------
 
 	// a space to save the total number of blocks
-	int *blocks = (int *)calloc(1, sizeof(int));
+	u_int *blocks = (u_int *)calloc(1, sizeof(int));
 
 	Flash *flash;
 	flash = Flash_Open(file_n, FLASH_SILENT, blocks);
 
-	int size_segment_in_sectors = sp->segment_size_in_blocks * sp->block_size_in_sectors;
+	// int size_segment_in_sectors = sp->segment_size_in_blocks * sp->block_size_in_sectors;
 
-	int r = Flash_Write(flash, 0, size_segment_in_sectors, (void *)sp);
+	int r = Flash_Write(flash, 0, getSegmentSizeInSectors(), (void *)sp);
 
 	printf("Writing Supper Segment result: %d - Error no: %d\n", r, errno);
 
@@ -110,7 +117,7 @@ int log_create(char *file_n, int bl_size, int seg_size, int log_size, int wear_l
 int initialize_log_system(char *file_n, int cache_size)
 {
 	printf("Initializing the log file...\n");
-	int *blocks = (int *)calloc(1, sizeof(int));
+	u_int *blocks = (u_int *)calloc(1, sizeof(int));
 
 	Flash *flash;
 	flash = Flash_Open(file_n, FLASH_SILENT, blocks);
@@ -204,7 +211,7 @@ int Log_Read(block_address address, int length, void *buffer)
 		{
 			printf(">>>> reading from FLASH segment.\n");
 
-			int *blocks = (int *)calloc(1, sizeof(int));
+			u_int *blocks = (u_int *)calloc(1, sizeof(int));
 
 			Flash *flash;
 
@@ -287,7 +294,7 @@ int flush_tail_segment_to_disk()
 {
 	last_block_number_in_segment = 1;
 
-	int *blocks = (int *)calloc(1, sizeof(int));
+	u_int *blocks = (u_int *)calloc(1, sizeof(int));
 
 	Flash *flash;
 
@@ -295,7 +302,7 @@ int flush_tail_segment_to_disk()
 
 	int size_segment_in_sectors = sp->segment_size_in_blocks * sp->block_size_in_sectors; // 32*2=64
 	// printf("last segment number in log: %d\n", sp->next_segment_number_in_log);
-	int result = Flash_Write(flash, sp->next_segment_number_in_log * size_segment_in_sectors, size_segment_in_sectors, (void *)last_segment_write);
+	Flash_Write(flash, sp->next_segment_number_in_log * size_segment_in_sectors, size_segment_in_sectors, (void *)last_segment_write);
 
 	// printf("Write Result: %d\n", result);
 	// printf("\t Error no: %d\n", errno);
@@ -310,6 +317,8 @@ int flush_tail_segment_to_disk()
 	// printf("The tail segment was written to the log at segment index %d.\n", sp->next_segment_number_in_log-1);
 
 	Update_SuperSegment();
+
+	return 0;
 }
 
 // it is used to load the IFILE from the segment 1 to the memory for easy use
@@ -331,11 +340,12 @@ int Log_Read_IFile()
 	}
 
 	// Print_IFile();
+	return 0;
 }
 
 void Print_IFile()
 {
-	int max_number_of_mappings = (4 * sp->block_size_in_sectors * 512) / sizeof(i_node_block_address_mapping);
+	// int max_number_of_mappings = (4 * sp->block_size_in_sectors * 512) / sizeof(i_node_block_address_mapping);
 	printf("********** IFILE **********\n\n");
 
 	for (int i = 0; i < sp->i_node_mapping_count; ++i)
@@ -360,21 +370,21 @@ int Log_Write_IFile_First_Time()
 		memcpy(buffer + (i * sizeof(i_node_block_address_mapping)), tmp, sizeof(i_node_block_address_mapping));
 	}
 
-	int *blocks = (int *)calloc(1, sizeof(int));
+	u_int *blocks = (u_int *)calloc(1, sizeof(int));
 
 	Flash *flash;
 
 	flash = Flash_Open(file_name, FLASH_SILENT, blocks);
 
-	int size_segment_in_sectors = sp->segment_size_in_blocks * sp->block_size_in_sectors; // 32*2=64
+	// int size_segment_in_sectors = sp->segment_size_in_blocks * sp->block_size_in_sectors; // 32*2=64
 
 	int address_in_sector = (sp->i_node_of_i_file.direct_block[0].segment_no * sp->segment_size_in_blocks + sp->i_node_of_i_file.direct_block[0].block_no) * sp->block_size_in_sectors;
 
-	int address_in_erase_blocks = address_in_sector / 16;
+	// int address_in_erase_blocks = address_in_sector / 16;
 
 	Log_Erase(1, 1);
 
-	int result = Flash_Write(flash, address_in_sector, (4 * sp->block_size_in_sectors), (void *)buffer);
+	Flash_Write(flash, address_in_sector, (4 * sp->block_size_in_sectors), (void *)buffer);
 
 	// printf("IFILE UPDATE-Write Result: %d\n", result);
 	// printf("\t Error no: %d\n", errno);
@@ -396,21 +406,21 @@ int Log_Write_IFile()
 		memcpy(buffer + (i * sizeof(i_node_block_address_mapping)), IFile[i], sizeof(i_node_block_address_mapping));
 	}
 
-	int *blocks = (int *)calloc(1, sizeof(int));
+	u_int *blocks = (u_int *)calloc(1, sizeof(int));
 
 	Flash *flash;
 
 	flash = Flash_Open(file_name, FLASH_SILENT, blocks);
 
-	int size_segment_in_sectors = sp->segment_size_in_blocks * sp->block_size_in_sectors; // 32*2=64
+	// int size_segment_in_sectors = sp->segment_size_in_blocks * sp->block_size_in_sectors; // 32*2=64
 
 	int address_in_sector = (sp->i_node_of_i_file.direct_block[0].segment_no * sp->segment_size_in_blocks + sp->i_node_of_i_file.direct_block[0].block_no) * sp->block_size_in_sectors;
 
-	int address_in_erase_blocks = address_in_sector / 16;
+	// int address_in_erase_blocks = address_in_sector / 16;
 
 	Log_Erase(1, 1);
 
-	int result = Flash_Write(flash, address_in_sector, (4 * sp->block_size_in_sectors), (void *)buffer);
+	Flash_Write(flash, address_in_sector, (4 * sp->block_size_in_sectors), (void *)buffer);
 
 	// printf("IFILE UPDATE-Write Result: %d\n", result);
 	// printf("\t Error no: %d\n", errno);
@@ -436,7 +446,7 @@ int Log_Add_mapping(i_node_block_address_mapping mapping)
 
 int Log_Remove_mapping(int inum)
 {
-	int max_number_of_mappings = (4 * sp->block_size_in_sectors * 512) / sizeof(i_node_block_address_mapping);
+	// int max_number_of_mappings = (4 * sp->block_size_in_sectors * 512) / sizeof(i_node_block_address_mapping);
 	int index = -1;
 
 	for (int i = 0; i < sp->i_node_mapping_count; ++i)
@@ -474,7 +484,7 @@ int Log_Remove_mapping(int inum)
 // erase a specific part of the flash (units are in erase blocks)
 int Log_Erase(int segment_no, int length_in_segments)
 {
-	int *blocks = (int *)calloc(1, sizeof(int));
+	u_int *blocks = (u_int *)calloc(1, sizeof(int));
 
 	Flash *flash;
 
@@ -490,7 +500,7 @@ int Log_Erase(int segment_no, int length_in_segments)
 // updates the supersegment at segment zero
 int Update_SuperSegment()
 {
-	int *blocks = (int *)calloc(1, sizeof(int));
+	u_int *blocks = (u_int *)calloc(1, sizeof(int));
 
 	Flash *flash;
 	flash = Flash_Open(file_name, FLASH_SILENT, blocks);
@@ -499,9 +509,11 @@ int Update_SuperSegment()
 
 	Log_Erase(0, 1);
 
-	int r = Flash_Write(flash, 0, size_segment_in_sectors, (void *)sp);
+	Flash_Write(flash, 0, size_segment_in_sectors, (void *)sp);
 
 	Flash_Close(flash);
+
+	return 0;
 }
 
 int Update_Last_Segment_Summary_Block(int block_no, char *desc)
