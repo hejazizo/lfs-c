@@ -19,47 +19,47 @@
 
 int directory_remove(int dir_inum)
 {
-    // Get the subdirectories of the directory to be removed
-    int *subdir_count = (int *)calloc(1, sizeof(int));
-    DirectoryEntry **subdirs = get_subdirectories(dir_inum, subdir_count);
+	// Get the subdirectories of the directory to be removed
+	int *subdir_count = (int *)calloc(1, sizeof(int));
+	DirectoryEntry **subdirs = get_subdirectories(dir_inum, subdir_count);
 
-    // Count the number of swap files in the directory
-    int swap_file_count = 0;
-    for (int i = 0; i < *subdir_count; ++i)
-    {
-        if (strstr(subdirs[i]->name, ".swp") != NULL)
-        {
-            swap_file_count++;
-        }
-    }
+	// Count the number of swap files in the directory
+	int swap_file_count = 0;
+	for (int i = 0; i < *subdir_count; ++i)
+	{
+		if (strstr(subdirs[i]->name, ".swp") != NULL)
+		{
+			swap_file_count++;
+		}
+	}
 
-    // If the directory contains subdirectories, do not remove it
-    if ((*subdir_count) - swap_file_count > 2)
-    {
-        printf("This directory contains subdirectories. \n");
-        free(subdirs);
-        free(subdir_count);
-        return -1;
-    }
+	// If the directory contains subdirectories, do not remove it
+	if ((*subdir_count) - swap_file_count > 2)
+	{
+		printf("This directory contains subdirectories. \n");
+		free(subdirs);
+		free(subdir_count);
+		return -1;
+	}
 
-    // Remove the directory from the parent directory list
-    for (int i = 0; i < *subdir_count; ++i)
-    {
-        if (subdirs[i]->name[0] == '.' && subdirs[i]->name[1] == '.')
-        {
-            remove_child_entry_from_parent_directory(subdirs[i]->i_num, dir_inum);
-        }
-    }
+	// Remove the directory from the parent directory list
+	for (int i = 0; i < *subdir_count; ++i)
+	{
+		if (subdirs[i]->name[0] == '.' && subdirs[i]->name[1] == '.')
+		{
+			remove_child_entry_from_parent_directory(subdirs[i]->i_num, dir_inum);
+		}
+	}
 
-    // Remove the directory from the ifile
-    Log_Remove_mapping(dir_inum);
+	// Remove the directory from the ifile
+	Log_Remove_mapping(dir_inum);
 
-    // Free the memory allocated for the directory entries and count
-    free(subdirs);
-    free(subdir_count);
+	// Free the memory allocated for the directory entries and count
+	free(subdirs);
+	free(subdir_count);
 
-    // Return 0 to indicate success
-    return 0;
+	// Return 0 to indicate success
+	return 0;
 }
 
 
@@ -73,14 +73,14 @@ int directory_remove(int dir_inum)
 */
 int file_remove(int file_inum, int parent_dir_inum)
 {
-    // Remove the file from the parent directory entries
-    remove_child_entry_from_parent_directory(parent_dir_inum, file_inum);
+	// Remove the file from the parent directory entries
+	remove_child_entry_from_parent_directory(parent_dir_inum, file_inum);
 
-    // Free the inode of the file
-    free_file(file_inum);
+	// Free the inode of the file
+	free_file(file_inum);
 
-    // Return 0 to indicate success
-    return 0;
+	// Return 0 to indicate success
+	return 0;
 }
 
 
@@ -96,28 +96,28 @@ int file_remove(int file_inum, int parent_dir_inum)
 
 int directory_create(int parent_dir_inum, char *dir_name)
 {
-    // Create a special file for storing the information inside the directory
-    int my_inum = create_file(1);
+	// Create a special file for storing the information inside the directory
+	int my_inum = create_file(1);
 
-    DirectoryEntry entries[2];
+	DirectoryEntry entries[2];
 
-    strcpy(entries[0].name, ".");
-    entries[0].i_num = my_inum;
+	strcpy(entries[0].name, ".");
+	entries[0].i_num = my_inum;
 
-    // The second entry represents the parent directory
-    strcpy(entries[1].name, "..");
-    entries[1].i_num = parent_dir_inum;
+	// The second entry represents the parent directory
+	strcpy(entries[1].name, "..");
+	entries[1].i_num = parent_dir_inum;
 
-    if (parent_dir_inum != -1)
-    {
-        add_child_entry_to_parent_directory(parent_dir_inum, dir_name, my_inum);
-    }
+	if (parent_dir_inum != -1)
+	{
+		add_child_entry_to_parent_directory(parent_dir_inum, dir_name, my_inum);
+	}
 
-    // Write the entries to the file
-    write_to_file(my_inum, 0, sizeof(entries), entries);
+	// Write the entries to the file
+	write_to_file(my_inum, 0, sizeof(entries), entries);
 
-    // Return the inode number of the newly created directory
-    return my_inum;
+	// Return the inode number of the newly created directory
+	return my_inum;
 }
 
 
@@ -176,12 +176,12 @@ int remove_child_entry_from_parent_directory(int parent_inum, int child_inum)
             return 0;
         }
     }
-    printf("Cannot remove child %d from parent %d. Child entry not found.\n", child_inum, parent_inum);
+	printf("Cannot remove child %d from parent %d. Child entry not found.\n", child_inum, parent_inum);
     free(buffer);
     return -1;
 }
 
-// If the child entry is not found, return failure
+    // If the child entry is not found, return failure
 
 
 
@@ -244,43 +244,43 @@ void print_new_entries(int inum)
 int add_child_entry_to_parent_directory(int parent_inum, char *child_name, int child_inum)
 {
 // Get the inode of the parent directory
-    i_node *parent_inode = get_inode(parent_inum);
+i_node *parent_inode = get_inode(parent_inum);
 
 // Allocate a buffer to read the parent directory data
-    void *buffer = (void *)calloc(parent_inode->eof_index_in_bytes + 1, sizeof(char));
+void *buffer = (void *)calloc(parent_inode->eof_index_in_bytes + 1, sizeof(char));
 
 // Read the parent directory data into the buffer
-    read_file_from_start_to_end(parent_inum, buffer);
+read_file_from_start_to_end(parent_inum, buffer);
 
 // Calculate the number of directory entries in the parent directory
-    int entry_count = (parent_inode->eof_index_in_bytes + 1) / sizeof(DirectoryEntry);
+int entry_count = (parent_inode->eof_index_in_bytes + 1) / sizeof(DirectoryEntry);
 
 // Allocate memory for the new directory entry
-    DirectoryEntry *new_entry = (DirectoryEntry *)malloc(sizeof(DirectoryEntry));
+DirectoryEntry *new_entry = (DirectoryEntry *)malloc(sizeof(DirectoryEntry));
 
 // Initialize the new directory entry with the child inode number and name
-    new_entry->i_num = child_inum;
-    strcpy(new_entry->name, child_name);
+new_entry->i_num = child_inum;
+strcpy(new_entry->name, child_name);
 
 // Allocate memory for the updated directory entries
-    DirectoryEntry *entries = (DirectoryEntry *)malloc((entry_count + 1) * sizeof(DirectoryEntry));
+DirectoryEntry *entries = (DirectoryEntry *)malloc((entry_count + 1) * sizeof(DirectoryEntry));
 
 // Copy the existing directory entries from the buffer to the entries array
-    memcpy(entries, buffer, entry_count * sizeof(DirectoryEntry));
+memcpy(entries, buffer, entry_count * sizeof(DirectoryEntry));
 
 // Add the new directory entry to the end of the entries array
-    memcpy(&entries[entry_count], new_entry, sizeof(DirectoryEntry));
+memcpy(&entries[entry_count], new_entry, sizeof(DirectoryEntry));
 
 // Write the updated directory entries to the parent directory
-    write_to_file(parent_inum, 0, (entry_count + 1) * sizeof(DirectoryEntry), entries);
+write_to_file(parent_inum, 0, (entry_count + 1) * sizeof(DirectoryEntry), entries);
 
 // Free dynamically allocated memory
-    free(new_entry);
-    free(entries);
-    free(buffer);
+free(new_entry);
+free(entries);
+free(buffer);
 
 // Return 0 to indicate success
-    return 0;
+return 0;
 }
 
 
@@ -296,37 +296,37 @@ int add_child_entry_to_parent_directory(int parent_inum, char *child_name, int c
 
 DirectoryEntry** get_subdirectories(int dir_inum, int* entry_count) {
 // Get the inode of the directory
-    i_node* dir_inode = get_inode(dir_inum);
+i_node* dir_inode = get_inode(dir_inum);
 
 
 // Return NULL if the directory does not exist
-    if (dir_inode->i_num == -1) {
-        return NULL;
-    }
+if (dir_inode->i_num == -1) {
+    return NULL;
+}
 
 // Allocate a buffer to read the directory data
-    void* buffer = (void*)calloc(dir_inode->eof_index_in_bytes + 1, sizeof(char));
+void* buffer = (void*)calloc(dir_inode->eof_index_in_bytes + 1, sizeof(char));
 
 // Read the directory data into the buffer
-    read_file_from_start_to_end(dir_inum, buffer);
+read_file_from_start_to_end(dir_inum, buffer);
 
 // Calculate the number of directory entries in the directory
-    *entry_count = (dir_inode->eof_index_in_bytes + 1) / sizeof(DirectoryEntry);
+*entry_count = (dir_inode->eof_index_in_bytes + 1) / sizeof(DirectoryEntry);
 
 // Allocate an array of pointers to directory entries
-    DirectoryEntry** entries = (DirectoryEntry**)calloc(*entry_count, sizeof(DirectoryEntry*));
+DirectoryEntry** entries = (DirectoryEntry**)calloc(*entry_count, sizeof(DirectoryEntry*));
 
 // Copy each directory entry from the buffer to the entries array
-    for (int i = 0; i < *entry_count; ++i) {
-        entries[i] = (DirectoryEntry*)calloc(1, sizeof(DirectoryEntry));
-        memcpy(entries[i], buffer + (i * sizeof(DirectoryEntry)), sizeof(DirectoryEntry));
-    }
+for (int i = 0; i < *entry_count; ++i) {
+    entries[i] = (DirectoryEntry*)calloc(1, sizeof(DirectoryEntry));
+    memcpy(entries[i], buffer + (i * sizeof(DirectoryEntry)), sizeof(DirectoryEntry));
+}
 
 // Free the buffer
-    free(buffer);
+free(buffer);
 
 // Return the array of pointers to directory entries
-    return entries;
+return entries;
 }
 
 
@@ -365,7 +365,7 @@ int get_inum_by_path(char **directory_file_elements, int number_elements)
                 {
                     return entries_ptr[j]->i_num;
                 }
-                    // Otherwise, get the subdirectories of the current directory and continue traversing
+                // Otherwise, get the subdirectories of the current directory and continue traversing
                 else
                 {
                     free(dir_count_ptr);
