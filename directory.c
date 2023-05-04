@@ -7,16 +7,9 @@
 #include <math.h>
 #include <string.h>
 
-
-
-/**
-* Removes a directory from the file system.
-*
-* @param dir_inum The inode number of the directory to remove
-*
-* @return 0 on success, -1 on failure
-*/
-
+// This function delete a directory from the file system
+//The inode number of the directory that you want to remove.
+//Returns 0 if the directory was removed successfully, or -1 if the directory could not be removed.
 int directory_remove(int dir_inum)
 {
 	// Get the subdirectories of the directory to be removed
@@ -25,13 +18,15 @@ int directory_remove(int dir_inum)
 
 	// Count the number of swap files in the directory
 	int swap_file_count = 0;
-	for (int i = 0; i < *subdir_count; ++i)
-	{
-		if (strstr(subdirs[i]->name, ".swp") != NULL)
-		{
-			swap_file_count++;
-		}
-	}
+    int i = 0;
+    while (i < *subdir_count)
+    {
+        if (strstr(subdirs[i]->name, ".swp") != NULL)
+        {
+            swap_file_count++;
+        }
+        i++;
+    }
 
 	// If the directory contains subdirectories, do not remove it
 	if ((*subdir_count) - swap_file_count > 2)
@@ -43,13 +38,15 @@ int directory_remove(int dir_inum)
 	}
 
 	// Remove the directory from the parent directory list
-	for (int i = 0; i < *subdir_count; ++i)
-	{
-		if (subdirs[i]->name[0] == '.' && subdirs[i]->name[1] == '.')
-		{
-			remove_child_entry_from_parent_directory(subdirs[i]->i_num, dir_inum);
-		}
-	}
+    i = 0;
+    while (i < *subdir_count)
+    {
+        if (subdirs[i]->name[0] == '.' && subdirs[i]->name[1] == '.')
+        {
+            remove_child_entry_from_parent_directory(subdirs[i]->i_num, dir_inum);
+        }
+        i++;
+    }
 
 	// Remove the directory from the ifile
 	Log_Remove_mapping(dir_inum);
@@ -62,15 +59,10 @@ int directory_remove(int dir_inum)
 	return 0;
 }
 
+//file_num: The inode number of the file that needs to be removed
+//parent_dir_inum: The inode number of the directory that contains the file
+// Returns 0 if the file was removed successfully
 
-/**
-* Removes a file from the file system.
-*
-* @param file_num The inode number of the file to remove
-* @param parent_dir_inum inode number of the parent directory of the file
-*
-* @return 0 on success
-*/
 int file_remove(int file_inum, int parent_dir_inum)
 {
 	// Remove the file from the parent directory entries
@@ -83,17 +75,10 @@ int file_remove(int file_inum, int parent_dir_inum)
 	return 0;
 }
 
-
-
-/**
-* Creates a new directory in the file system.
-*
-* @param parent_dir_inum The inode number of the parent directory of the new directory
-* @param dir_name The name of the new directory
-*
-* @return The inode number of the newly created directory
-*/
-
+//this function creates a new directory in the file system
+//parent_dir_inum: The inode number of the parent directory where the new directory will be created
+//dir_name: The name of the new directory
+//The function returns the inode number of the newly created directory
 int directory_create(int parent_dir_inum, char *dir_name)
 {
 	// Create a special file for storing the information inside the directory
@@ -120,26 +105,21 @@ int directory_create(int parent_dir_inum, char *dir_name)
 	return my_inum;
 }
 
-
-/**
-* Removes a child directory entry from its parent directory.
-*
-* @param parent_inum The inode number of the parent directory
-* @param child_inum The inode number of the child directory to remove
-*
-* @return 0 on success, -1 on failure
-*/
+//This function removes a child directory entry from its parent directory
+// It takes the inode number of the parent directory as "parent_inum" and
+// the inode number of the child directory to be removed as "child_inum"
+// The function returns 0 on success and -1 on failure
 int remove_child_entry_from_parent_directory(int parent_inum, int child_inum)
 {
     // Retrieve the inode of the parent directory
-    i_node* parent_inode = get_inode(parent_inum);
-    if (parent_inode == NULL) {
+    i_node* dir_parent_inode = get_inode(parent_inum);
+    if (dir_parent_inode == NULL) {
         printf("Cannot remove child %d from parent %d. Parent inode not found.\n", child_inum, parent_inum);
         return -1;
     }
 
     // Allocate a buffer to read the parent directory data
-    void* buffer = calloc(parent_inode->eof_index_in_bytes + 1, sizeof(char));
+    void* buffer = calloc(dir_parent_inode->eof_index_in_bytes + 1, sizeof(char));
     if (buffer == NULL) {
         printf("Error: failed to allocate buffer.\n");
         return -1;
@@ -153,7 +133,7 @@ int remove_child_entry_from_parent_directory(int parent_inum, int child_inum)
     }
 
     // Calculate the number of directory entries in the parent directory
-    int entry_count = (parent_inode->eof_index_in_bytes + 1) / sizeof(DirectoryEntry);
+    int entry_count = (dir_parent_inode->eof_index_in_bytes + 1) / sizeof(DirectoryEntry);
 
     // Iterate through all the directory entries in the parent directory
     for (int i = 0; i < entry_count; ++i) {
@@ -165,9 +145,9 @@ int remove_child_entry_from_parent_directory(int parent_inum, int child_inum)
             // Move all subsequent directory entries back by one index
             memmove(buffer + (i * sizeof(DirectoryEntry)), buffer + ((i + 1) * sizeof(DirectoryEntry)), (entry_count - i - 1) * sizeof(DirectoryEntry));
             // Update the parent directory's eof_index_in_bytes value
-            parent_inode->eof_index_in_bytes -= sizeof(DirectoryEntry);
+            dir_parent_inode->eof_index_in_bytes -= sizeof(DirectoryEntry);
             // Write the updated parent directory data back to the disk
-            if (write_to_file(parent_inum, 0, parent_inode->eof_index_in_bytes + 1, buffer) < 0) {
+            if (write_to_file(parent_inum, 0, dir_parent_inode->eof_index_in_bytes + 1, buffer) < 0) {
                 printf("Error: failed to write parent directory data.\n");
                 free(buffer);
                 return -1;
@@ -184,13 +164,7 @@ int remove_child_entry_from_parent_directory(int parent_inum, int child_inum)
     // If the child entry is not found, return failure
 
 
-
-/**
-* Prints the contents of a directory.
-*
-* @param inum The inode number of the directory to print
-*/
-
+// This function prints the contents of a directory specified by its inode number
 void print_new_entries(int inum)
 {
     // Get the inode of the directory
@@ -219,10 +193,11 @@ void print_new_entries(int inum)
     memcpy(entries, buffer, entry_count * sizeof(DirectoryEntry));
 
     // Iterate through all the directory entries in the directory
-    for (int i = 0; i < entry_count; ++i)
-    {
+    int i = 0;
+    while (i < entry_count) {
         // Print the inode number and name of the current directory entry
         printf("inum: %d name: %s\n", entries[i].i_num, entries[i].name);
+        i++;
     }
 
     // Free the buffer
@@ -230,30 +205,25 @@ void print_new_entries(int inum)
 }
 
 
-
-/**
-* Adds a child directory entry to a parent directory.
-*
-* @param parent_inum The inode number of the parent directory
-* @param child_name The name of the child directory
-* @param child_inum The inode number of the child directory
-*
-* @return 0 on success
-*/
+//This function adds a new child directory entry to a specified parent directory in the file system.
+//parent_inum The inode number of the parent directory.
+//child_name The name of the child directory to be added.
+//child_inum The inode number of the child directory.
+//Returns 0 upon successful completion of the operation.
 
 int add_child_entry_to_parent_directory(int parent_inum, char *child_name, int child_inum)
 {
 // Get the inode of the parent directory
-i_node *parent_inode = get_inode(parent_inum);
+i_node *dir_parent_inode = get_inode(parent_inum);
 
 // Allocate a buffer to read the parent directory data
-void *buffer = (void *)calloc(parent_inode->eof_index_in_bytes + 1, sizeof(char));
+void *buffer = (void *)calloc(dir_parent_inode->eof_index_in_bytes + 1, sizeof(char));
 
 // Read the parent directory data into the buffer
 read_file_from_start_to_end(parent_inum, buffer);
 
 // Calculate the number of directory entries in the parent directory
-int entry_count = (parent_inode->eof_index_in_bytes + 1) / sizeof(DirectoryEntry);
+int entry_count = (dir_parent_inode->eof_index_in_bytes + 1) / sizeof(DirectoryEntry);
 
 // Allocate memory for the new directory entry
 DirectoryEntry *new_entry = (DirectoryEntry *)malloc(sizeof(DirectoryEntry));
@@ -282,18 +252,11 @@ free(buffer);
 // Return 0 to indicate success
 return 0;
 }
-
-
-
-/**
-* Retrieves the subdirectories of a directory.
-*
-* @param dir_inum The inode number of the directory
-* @param entry_count Pointer to an integer that will store the number of subdirectories found
-*
-* @return An array of pointers to directory entries, or NULL if the directory does not exist
-*/
-
+//This function retrieves the list of subdirectories of a directory
+//specified by its inode number.
+//dir_inum The inode number of the directory to retrieve subdirectories from
+//entry_count A pointer to an integer that will be used to store the number of subdirectories found
+//An array of pointers to directory entries, or NULL if the specified directory does not exist
 DirectoryEntry** get_subdirectories(int dir_inum, int* entry_count) {
 // Get the inode of the directory
 i_node* dir_inode = get_inode(dir_inum);
@@ -329,15 +292,9 @@ free(buffer);
 return entries;
 }
 
-
-/**
-* Gets the inode number of a file or directory given its path.
-*
-* @param directory_file_elements An array of strings representing the path to the file or directory
-* @param number_elements The number of elements in the path
-*
-* @return The inode number of the file or directory, or -1 if it does not exist
-*/
+//This function retrieves the inode number of a file or directory by providing its path as an array of strings.
+//The number of elements in the path is specified by number_elements.
+//If the file or directory exists, it returns its inode number, otherwise it returns -1.
 
 int get_inum_by_path(char **directory_file_elements, int number_elements)
 {
