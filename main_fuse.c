@@ -333,7 +333,7 @@ static int lfs_read(const char *path, char *buf, size_t size, off_t offset, stru
     }
 }
 
-static int lfs_write(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
+static int lfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
     printf("******************************** In WRITE with path %s ****************************\n", path);
     (void)fi;
